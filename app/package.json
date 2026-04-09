@@ -1,0 +1,34 @@
+{
+  "name": "finance-control-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n web,api -c green,blue \"vite\" \"tsx watch src/backend/server.ts\"",
+    "dev:web": "vite",
+    "dev:api": "tsx watch src/backend/server.ts",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "latest",
+    "@supabase/supabase-js": "latest",
+    "@twa-dev/sdk": "latest",
+    "dotenv": "latest",
+    "hono": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "concurrently": "latest",
+    "tsx": "latest",
+    "typescript": "latest",
+    "vite": "latest"
+  }
+}
