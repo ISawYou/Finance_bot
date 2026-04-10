@@ -1,5 +1,10 @@
 import type { PostgrestError } from "@supabase/supabase-js";
-import type { CreateObligationInput, Obligation } from "@shared/types/domain";
+import type {
+  CreateObligationInput,
+  FlowType,
+  Obligation,
+  UpdateObligationInput
+} from "@shared/types/domain";
 import { createServerSupabaseClient } from "../lib/supabase";
 import { deriveNextPaymentDate } from "../services/scheduled-payment-generator";
 
@@ -7,6 +12,8 @@ type ObligationRow = {
   id: string;
   title: string | null;
   type: string | null;
+  flow_type: string | null;
+  category: string | null;
   amount: number;
   currency: string | null;
   recurrence_type: string | null;
@@ -18,9 +25,11 @@ type ObligationRow = {
   status: string | null;
 };
 
-type CreateObligationRow = {
+type UpsertObligationRow = {
   title: string;
   type: string;
+  flow_type: CreateObligationInput["flowType"];
+  category: string;
   amount: number;
   currency: string;
   recurrence_type: CreateObligationInput["recurrenceType"];
@@ -29,11 +38,27 @@ type CreateObligationRow = {
   end_date: string | null;
   next_payment_date: string | null;
   comment: string | null;
-  status: "active";
 };
 
+const obligationSelect = `
+  id,
+  title,
+  type,
+  flow_type,
+  category,
+  amount,
+  currency,
+  recurrence_type,
+  recurrence_day,
+  start_date,
+  end_date,
+  next_payment_date,
+  comment,
+  status
+`;
+
 export const obligationsRepository = {
-  async listObligations(limit = 50): Promise<Obligation[]> {
+  async listObligations(limit = 100): Promise<Obligation[]> {
     const supabase = createServerSupabaseClient();
 
     if (!supabase) {
@@ -42,23 +67,7 @@ export const obligationsRepository = {
 
     const { data, error } = await supabase
       .from("obligations")
-      .select(
-        `
-          id,
-          title,
-          type,
-          amount,
-          currency,
-          recurrence_type,
-          recurrence_day,
-          start_date,
-          end_date,
-          next_payment_date,
-          comment,
-          status
-        `
-      )
-      .neq("status", "closed")
+      .select(obligationSelect)
       .order("next_payment_date", { ascending: true, nullsFirst: false })
       .order("title", { ascending: true })
       .limit(limit);
@@ -70,6 +79,26 @@ export const obligationsRepository = {
     return ((data ?? []) as ObligationRow[]).map(mapObligationRow);
   },
 
+  async getObligationById(id: string): Promise<Obligation | null> {
+    const supabase = createServerSupabaseClient();
+
+    if (!supabase) {
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from("obligations")
+      .select(obligationSelect)
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error) {
+      throw createRepositoryError(error);
+    }
+
+    return data ? mapObligationRow(data as ObligationRow) : null;
+  },
+
   async createObligation(input: CreateObligationInput): Promise<Obligation> {
     const supabase = createServerSupabaseClient();
 
@@ -77,39 +106,57 @@ export const obligationsRepository = {
       throw new Error("Supabase is not configured.");
     }
 
-    const payload: CreateObligationRow = {
-      title: input.title,
-      type: input.type,
-      amount: input.amount,
-      currency: input.currency,
-      recurrence_type: input.recurrenceType,
-      recurrence_day: input.recurrenceDay,
-      start_date: input.startDate,
-      end_date: input.endDate,
-      next_payment_date: deriveNextPaymentDate(input),
-      comment: input.comment,
+    const payload: UpsertObligationRow & { status: "active" } = {
+      ...mapUpsertPayload(input),
       status: "active"
     };
 
     const { data, error } = await supabase
       .from("obligations")
       .insert(payload)
-      .select(
-        `
-          id,
-          title,
-          type,
-          amount,
-          currency,
-          recurrence_type,
-          recurrence_day,
-          start_date,
-          end_date,
-          next_payment_date,
-          comment,
-          status
-        `
-      )
+      .select(obligationSelect)
+      .single();
+
+    if (error) {
+      throw createRepositoryError(error);
+    }
+
+    return mapObligationRow(data as ObligationRow);
+  },
+
+  async updateObligation(id: string, input: UpdateObligationInput): Promise<Obligation> {
+    const supabase = createServerSupabaseClient();
+
+    if (!supabase) {
+      throw new Error("Supabase is not configured.");
+    }
+
+    const { data, error } = await supabase
+      .from("obligations")
+      .update(mapUpsertPayload(input))
+      .eq("id", id)
+      .select(obligationSelect)
+      .single();
+
+    if (error) {
+      throw createRepositoryError(error);
+    }
+
+    return mapObligationRow(data as ObligationRow);
+  },
+
+  async updateObligationStatus(id: string, status: Obligation["status"]): Promise<Obligation> {
+    const supabase = createServerSupabaseClient();
+
+    if (!supabase) {
+      throw new Error("Supabase is not configured.");
+    }
+
+    const { data, error } = await supabase
+      .from("obligations")
+      .update({ status })
+      .eq("id", id)
+      .select(obligationSelect)
       .single();
 
     if (error) {
@@ -120,11 +167,30 @@ export const obligationsRepository = {
   }
 };
 
+function mapUpsertPayload(input: CreateObligationInput | UpdateObligationInput): UpsertObligationRow {
+  return {
+    title: input.title,
+    type: input.type,
+    flow_type: input.flowType,
+    category: input.category,
+    amount: input.amount,
+    currency: input.currency,
+    recurrence_type: input.recurrenceType,
+    recurrence_day: input.recurrenceDay,
+    start_date: input.startDate,
+    end_date: input.endDate,
+    next_payment_date: deriveNextPaymentDate(input),
+    comment: input.comment
+  };
+}
+
 function mapObligationRow(row: ObligationRow): Obligation {
   return {
     id: row.id,
-    title: row.title ?? "Обязательство",
+    title: row.title ?? "Obligation",
     type: row.type ?? "other",
+    flowType: normalizeFlowType(row.flow_type),
+    category: row.category ?? "other",
     amount: row.amount,
     currency: row.currency ?? "RUB",
     recurrenceType: normalizeRecurrenceType(row.recurrence_type),
@@ -137,9 +203,20 @@ function mapObligationRow(row: ObligationRow): Obligation {
   };
 }
 
-function normalizeRecurrenceType(
-  value: string | null
-): Obligation["recurrenceType"] {
+function normalizeFlowType(value: string | null): FlowType {
+  switch (value) {
+    case "operating":
+    case "financial":
+    case "tax":
+    case "payroll":
+    case "investing":
+      return value;
+    default:
+      return "other";
+  }
+}
+
+function normalizeRecurrenceType(value: string | null): Obligation["recurrenceType"] {
   switch (value) {
     case "once":
     case "weekly":

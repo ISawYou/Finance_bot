@@ -5,6 +5,8 @@ export const scheduledPaymentSchema = z.object({
   obligationId: z.string(),
   title: z.string(),
   type: z.string(),
+  flowType: z.enum(["operating", "financial", "tax", "payroll", "investing", "other"]),
+  category: z.string(),
   paymentDate: z.string(),
   amount: z.number().nonnegative(),
   currency: z.string(),
