@@ -8,6 +8,8 @@ export type FlowType =
   | "investing"
   | "other";
 
+export type BankProvider = "mock" | "http_json";
+
 export type PaymentStatus =
   | "planned"
   | "paid"
@@ -101,4 +103,60 @@ export type UpdateObligationInput = CreateObligationInput;
 
 export type UpdateObligationStatusInput = {
   status: Obligation["status"];
+};
+
+export type BankAccount = {
+  id: string;
+  provider: BankProvider;
+  externalAccountId: string;
+  bankName: string;
+  accountName: string;
+  accountNumberMask: string | null;
+  currency: string;
+  isActive: boolean;
+  lastSyncedAt: string | null;
+};
+
+export type CurrentBalance = {
+  bankAccountId: string;
+  provider: BankProvider;
+  bankName: string;
+  accountName: string;
+  accountNumberMask: string | null;
+  currency: string;
+  amount: number;
+  balanceAt: string;
+  source: "bank_api" | "cache" | "mock";
+};
+
+export type BankSyncLog = {
+  id: string;
+  provider: BankProvider;
+  syncType: "balances";
+  status: "success" | "failed";
+  startedAt: string;
+  finishedAt: string | null;
+  errorMessage: string | null;
+  accountsSynced: number;
+};
+
+export type BankBalancesResponse = {
+  source: "bank_api" | "cache" | "mock";
+  syncedAt: string | null;
+  totalCash: number;
+  items: CurrentBalance[];
+};
+
+export type OwnerDashboardOverview = {
+  source?: "bank_api" | "cache" | "mock";
+  balances: CurrentBalance[];
+  upcoming: ScheduledPayment[];
+  summary: {
+    totalCash: number;
+    weekRequiredAmount: number;
+    monthRequiredAmount: number;
+    projectedCashAfterWeek: number;
+    projectedCashAfterMonth: number;
+    overdueCount: number;
+  };
 };

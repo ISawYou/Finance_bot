@@ -1,8 +1,10 @@
 import type {
+  BankBalancesResponse,
   CreateObligationInput,
   Obligation,
   ObligationDetailsResponse,
   ObligationsListResponse,
+  OwnerDashboardOverview,
   PaymentCalendarEventsResponse,
   PaymentCalendarOverview,
   UpdateObligationInput
@@ -14,9 +16,19 @@ export type CalendarOverview = PaymentCalendarOverview;
 export type CalendarEventsResponse = PaymentCalendarEventsResponse;
 export type ObligationsResponse = ObligationsListResponse;
 export type ObligationDetails = ObligationDetailsResponse;
+export type BalancesResponse = BankBalancesResponse;
+export type OwnerDashboardResponse = OwnerDashboardOverview;
 
 export async function getCalendarOverview(): Promise<CalendarOverview> {
   return apiGet<CalendarOverview>("/api/payment-calendar/overview");
+}
+
+export async function getOwnerDashboardOverview(): Promise<OwnerDashboardResponse> {
+  return apiGet<OwnerDashboardResponse>("/api/dashboard/owner");
+}
+
+export async function getBankBalances(): Promise<BalancesResponse> {
+  return apiGet<BalancesResponse>("/api/bank/balances");
 }
 
 export async function getObligations(): Promise<ObligationsResponse> {

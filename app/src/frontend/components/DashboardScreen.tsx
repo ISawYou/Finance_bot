@@ -1,40 +1,76 @@
 import type { CSSProperties } from "react";
-import type { CalendarOverview } from "@frontend/lib/api";
+import type { OwnerDashboardOverview } from "@shared/types/domain";
 import { formatPaymentDate, money } from "@frontend/lib/formatters";
 import { ListSkeleton, MetricCard, StateCard } from "./ui";
 
 export function DashboardScreen(props: {
-  overview: CalendarOverview | null;
+  overview: OwnerDashboardOverview | null;
   loading: boolean;
   error: string | null;
 }) {
   const summary = props.overview?.summary;
+  const balances = props.overview?.balances ?? [];
   const upcoming = props.overview?.upcoming ?? [];
-  const isEmpty = !props.loading && !props.error && upcoming.length === 0;
+  const isEmpty = !props.loading && !props.error && balances.length === 0 && upcoming.length === 0;
 
   return (
     <>
       <section style={styles.grid}>
-        <MetricCard label="Сегодня" value={props.loading ? "..." : money.format(summary?.todayAmount ?? 0)} tone="default" />
-        <MetricCard label="7 дней" value={props.loading ? "..." : money.format(summary?.weekAmount ?? 0)} tone="accent" />
-        <MetricCard label="Месяц" value={props.loading ? "..." : money.format(summary?.monthAmount ?? 0)} tone="default" />
-        <MetricCard label="Просрочено" value={props.loading ? "..." : String(summary?.overdueCount ?? 0)} tone="alert" />
+        <MetricCard label="Total Cash" value={props.loading ? "..." : money.format(summary?.totalCash ?? 0)} tone="accent" />
+        <MetricCard label="Required 7 Days" value={props.loading ? "..." : money.format(summary?.weekRequiredAmount ?? 0)} tone="default" />
+        <MetricCard label="Required Month" value={props.loading ? "..." : money.format(summary?.monthRequiredAmount ?? 0)} tone="default" />
+        <MetricCard label="After 7 Days" value={props.loading ? "..." : money.format(summary?.projectedCashAfterWeek ?? 0)} tone="default" />
+        <MetricCard label="After Month" value={props.loading ? "..." : money.format(summary?.projectedCashAfterMonth ?? 0)} tone="alert" />
       </section>
 
       <section style={styles.card}>
         <div style={styles.sectionHeader}>
           <div>
-            <h2 style={styles.sectionTitle}>Ближайшие платежи</h2>
-            <p style={styles.sectionHint}>Сумма, дата, поток денег и категория.</p>
+            <h2 style={styles.sectionTitle}>Bank balances</h2>
+            <p style={styles.sectionHint}>Current balances by account, used as the live cash base for the dashboard.</p>
           </div>
         </div>
 
         {props.loading ? (
           <ListSkeleton />
         ) : props.error ? (
-          <StateCard title="Не удалось загрузить данные" description={props.error} tone="error" />
+          <StateCard title="Could not load dashboard" description={props.error} tone="error" />
         ) : isEmpty ? (
-          <StateCard title="Ближайших выплат нет" description="На сегодня и ближайший период обязательных платежей не найдено." tone="empty" />
+          <StateCard title="No cash data yet" description="Add bank integration or cached balances to see available money." tone="empty" />
+        ) : (
+          <div style={styles.list}>
+            {balances.map((item) => (
+              <article key={item.bankAccountId} style={styles.listItem}>
+                <div>
+                  <strong>{item.accountName}</strong>
+                  <p style={styles.listMeta}>
+                    {item.bankName}{item.accountNumberMask ? ` / ${item.accountNumberMask}` : ""}
+                  </p>
+                  <p style={styles.secondaryMeta}>
+                    {item.currency} / Updated {formatBalanceAt(item.balanceAt)}
+                  </p>
+                </div>
+                <strong>{money.format(item.amount)}</strong>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section style={styles.card}>
+        <div style={styles.sectionHeader}>
+          <div>
+            <h2 style={styles.sectionTitle}>Upcoming required payments</h2>
+            <p style={styles.sectionHint}>The most relevant planned payouts for the owner view.</p>
+          </div>
+        </div>
+
+        {props.loading ? (
+          <ListSkeleton />
+        ) : props.error ? (
+          <StateCard title="Could not load payments" description={props.error} tone="error" />
+        ) : upcoming.length === 0 ? (
+          <StateCard title="No required payments" description="There are no required scheduled payments in the current view." tone="empty" />
         ) : (
           <div style={styles.list}>
             {upcoming.map((payment) => (
@@ -42,16 +78,13 @@ export function DashboardScreen(props: {
                 <div>
                   <strong>{payment.title}</strong>
                   <p style={styles.listMeta}>
-                    {formatPaymentDate(payment.paymentDate)} · {getPaymentStatusLabel(payment.status)}
+                    {formatPaymentDate(payment.paymentDate)} / {labelStatus(payment.status)}
                   </p>
                   <p style={styles.secondaryMeta}>
-                    {payment.flowType} · {payment.category}
+                    {payment.flowType} / {payment.category}
                   </p>
                 </div>
-                <div style={styles.amountBox}>
-                  <strong>{money.format(payment.amount)}</strong>
-                  <span style={styles.typeBadge}>{payment.type}</span>
-                </div>
+                <strong>{money.format(payment.amount)}</strong>
               </article>
             ))}
           </div>
@@ -61,19 +94,21 @@ export function DashboardScreen(props: {
   );
 }
 
-function getPaymentStatusLabel(status: CalendarOverview["upcoming"][number]["status"]) {
-  switch (status) {
-    case "overdue":
-      return "просрочено";
-    case "paid":
-      return "оплачено";
-    case "needs_review":
-      return "требует проверки";
-    case "cancelled":
-      return "отменено";
-    default:
-      return "запланировано";
-  }
+function labelStatus(status: OwnerDashboardOverview["upcoming"][number]["status"]) {
+  if (status === "overdue") return "Overdue";
+  if (status === "paid") return "Paid";
+  if (status === "needs_review") return "Needs review";
+  if (status === "cancelled") return "Cancelled";
+  return "Planned";
+}
+
+function formatBalanceAt(value: string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
 }
 
 const styles: Record<string, CSSProperties> = {
@@ -127,18 +162,5 @@ const styles: Record<string, CSSProperties> = {
     margin: "4px 0 0",
     color: "#8b816f",
     fontSize: 12
-  },
-  amountBox: {
-    display: "grid",
-    justifyItems: "end",
-    gap: 6
-  },
-  typeBadge: {
-    padding: "4px 8px",
-    borderRadius: 999,
-    background: "#f3ede1",
-    color: "#5f5648",
-    fontSize: 12,
-    textTransform: "uppercase"
   }
 };

@@ -1,5 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { bankRoute } from "./routes/bank";
+import { dashboardRoute } from "./routes/dashboard";
 import { healthRoute } from "./routes/health";
 import { obligationsRoute } from "./routes/obligations";
 import { paymentCalendarRoute } from "./routes/payment-calendar";
@@ -14,5 +16,7 @@ app.use(
 );
 
 app.route("/api/health", healthRoute);
+app.route("/api/bank", bankRoute);
+app.route("/api/dashboard", dashboardRoute);
 app.route("/api/obligations", obligationsRoute);
 app.route("/api/payment-calendar", paymentCalendarRoute);

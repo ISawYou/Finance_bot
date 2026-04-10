@@ -1,13 +1,5 @@
 import { useEffect, useState, type ChangeEvent, type CSSProperties, type FormEvent } from "react";
-import { getMiniAppContext } from "./lib/telegram";
-import {
-  createObligation,
-  getCalendarOverview,
-  getObligations,
-  type CalendarOverview,
-  type ObligationsResponse
-} from "./lib/api";
-import type { CreateObligationInput } from "@shared/types/domain";
+import type { CreateObligationInput, OwnerDashboardOverview } from "@shared/types/domain";
 import { DashboardScreen } from "./components/DashboardScreen";
 import {
   ObligationsScreen,
@@ -16,12 +8,14 @@ import {
   type ObligationFormState
 } from "./components/ObligationsScreen";
 import { PaymentCalendarScreen } from "./components/PaymentCalendarScreen";
+import { getMiniAppContext } from "./lib/telegram";
+import { createObligation, getObligations, getOwnerDashboardOverview, type ObligationsResponse } from "./lib/api";
 
 type Screen = "dashboard" | "calendar" | "obligations";
 
 export function App() {
   const [screen, setScreen] = useState<Screen>("calendar");
-  const [overview, setOverview] = useState<CalendarOverview | null>(null);
+  const [overview, setOverview] = useState<OwnerDashboardOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(true);
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [obligations, setObligations] = useState<ObligationsResponse | null>(null);
@@ -41,9 +35,9 @@ export function App() {
   function refreshOverview() {
     setOverviewLoading(true);
     setOverviewError(null);
-    getCalendarOverview()
+    getOwnerDashboardOverview()
       .then(setOverview)
-      .catch(() => setOverviewError("Не удалось загрузить обзор платежного календаря."))
+      .catch(() => setOverviewError("Could not load owner dashboard."))
       .finally(() => setOverviewLoading(false));
   }
 
@@ -52,17 +46,21 @@ export function App() {
     setObligationsError(null);
     getObligations()
       .then(setObligations)
-      .catch(() => setObligationsError("Не удалось загрузить список обязательств."))
+      .catch(() => setObligationsError("Could not load obligations."))
       .finally(() => setObligationsLoading(false));
   }
 
   const source = screen === "obligations" ? obligations?.source : overview?.source;
   const sourceLabel =
     (screen === "obligations" ? obligationsLoading : overviewLoading)
-      ? "загрузка..."
-      : source === "supabase"
-        ? "Supabase"
-        : "Mock data";
+      ? "loading..."
+      : source === "bank_api"
+        ? "Bank API"
+        : source === "cache"
+          ? "Cache"
+          : source === "supabase"
+            ? "Supabase"
+            : "Mock data";
 
   async function handleCreateObligation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -89,10 +87,10 @@ export function App() {
       handleObligationMutated(created);
       refreshOverview();
       setForm(initialObligationForm);
-      setSubmitSuccess("Обязательство создано.");
+      setSubmitSuccess("Obligation created.");
       setScreen("obligations");
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "Не удалось создать обязательство.");
+      setSubmitError(error instanceof Error ? error.message : "Could not create obligation.");
     } finally {
       setSubmitLoading(false);
     }
@@ -119,14 +117,14 @@ export function App() {
     <main style={styles.page}>
       <section style={styles.hero}>
         <p style={styles.eyebrow}>Finance Control</p>
-        <h1 style={styles.title}>Money calendar для собственника</h1>
+        <h1 style={styles.title}>Money calendar for the owner</h1>
         <p style={styles.subtitle}>
-          Основной интерфейс теперь строится вокруг календаря платежей, а obligations остаются базой для планирования.
+          The dashboard now combines live bank balances with required payments, while calendar and obligations stay focused on execution.
         </p>
         <div style={styles.meta}>
-          <span style={styles.sourceBadge}>Источник: {sourceLabel}</span>
-          <span>Платформа: {miniApp.platform}</span>
-          <span>Пользователь: {miniApp.userName}</span>
+          <span style={styles.sourceBadge}>Source: {sourceLabel}</span>
+          <span>Platform: {miniApp.platform}</span>
+          <span>User: {miniApp.userName}</span>
         </div>
       </section>
 
