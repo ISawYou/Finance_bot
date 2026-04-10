@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import type { OwnerDashboardOverview } from "@shared/types/domain";
-import { formatPaymentDate, money } from "@frontend/lib/formatters";
+import { formatFlowType, formatPaymentDate, formatPaymentStatus, money } from "@frontend/lib/formatters";
 import { ListSkeleton, MetricCard, StateCard } from "./ui";
 
 export function DashboardScreen(props: {
@@ -9,79 +9,38 @@ export function DashboardScreen(props: {
   error: string | null;
 }) {
   const summary = props.overview?.summary;
-  const balances = props.overview?.balances ?? [];
   const upcoming = props.overview?.upcoming ?? [];
-  const isEmpty = !props.loading && !props.error && balances.length === 0 && upcoming.length === 0;
 
   return (
     <>
       <section style={styles.grid}>
-        <MetricCard label="Total Cash" value={props.loading ? "..." : money.format(summary?.totalCash ?? 0)} tone="accent" />
-        <MetricCard label="Required 7 Days" value={props.loading ? "..." : money.format(summary?.weekRequiredAmount ?? 0)} tone="default" />
-        <MetricCard label="Required Month" value={props.loading ? "..." : money.format(summary?.monthRequiredAmount ?? 0)} tone="default" />
-        <MetricCard label="After 7 Days" value={props.loading ? "..." : money.format(summary?.projectedCashAfterWeek ?? 0)} tone="default" />
-        <MetricCard label="After Month" value={props.loading ? "..." : money.format(summary?.projectedCashAfterMonth ?? 0)} tone="alert" />
+        <MetricCard label="Всего денег" value={props.loading ? "..." : money.format(summary?.totalCash ?? 0)} tone="accent" hint="Все счета компании" />
+        <MetricCard label="Обязательные 7 дней" value={props.loading ? "..." : money.format(summary?.weekRequiredAmount ?? 0)} tone="default" hint="Ближайшие обязательные выплаты" />
+        <MetricCard label="Обязательные за месяц" value={props.loading ? "..." : money.format(summary?.monthRequiredAmount ?? 0)} tone="default" hint="Текущий месяц" />
+        <MetricCard label="После выплат 7 дней" value={props.loading ? "..." : money.format(summary?.projectedCashAfterWeek ?? 0)} tone="default" />
+        <MetricCard label="После выплат месяца" value={props.loading ? "..." : money.format(summary?.projectedCashAfterMonth ?? 0)} tone="alert" />
       </section>
 
       <section style={styles.card}>
-        <div style={styles.sectionHeader}>
-          <div>
-            <h2 style={styles.sectionTitle}>Bank balances</h2>
-            <p style={styles.sectionHint}>Current balances by account, used as the live cash base for the dashboard.</p>
-          </div>
-        </div>
-
+        <h2 style={styles.title}>Ближайшие обязательные выплаты</h2>
+        <p style={styles.hint}>Ключевые платежи, которые влияют на остаток денег.</p>
         {props.loading ? (
           <ListSkeleton />
         ) : props.error ? (
-          <StateCard title="Could not load dashboard" description={props.error} tone="error" />
-        ) : isEmpty ? (
-          <StateCard title="No cash data yet" description="Add bank integration or cached balances to see available money." tone="empty" />
-        ) : (
-          <div style={styles.list}>
-            {balances.map((item) => (
-              <article key={item.bankAccountId} style={styles.listItem}>
-                <div>
-                  <strong>{item.accountName}</strong>
-                  <p style={styles.listMeta}>
-                    {item.bankName}{item.accountNumberMask ? ` / ${item.accountNumberMask}` : ""}
-                  </p>
-                  <p style={styles.secondaryMeta}>
-                    {item.currency} / Updated {formatBalanceAt(item.balanceAt)}
-                  </p>
-                </div>
-                <strong>{money.format(item.amount)}</strong>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section style={styles.card}>
-        <div style={styles.sectionHeader}>
-          <div>
-            <h2 style={styles.sectionTitle}>Upcoming required payments</h2>
-            <p style={styles.sectionHint}>The most relevant planned payouts for the owner view.</p>
-          </div>
-        </div>
-
-        {props.loading ? (
-          <ListSkeleton />
-        ) : props.error ? (
-          <StateCard title="Could not load payments" description={props.error} tone="error" />
+          <StateCard title="Не удалось загрузить главную" description={props.error} tone="error" />
         ) : upcoming.length === 0 ? (
-          <StateCard title="No required payments" description="There are no required scheduled payments in the current view." tone="empty" />
+          <StateCard title="Ближайших выплат нет" description="На ближайший период обязательных платежей не найдено." tone="empty" />
         ) : (
           <div style={styles.list}>
             {upcoming.map((payment) => (
-              <article key={payment.id} style={styles.listItem}>
+              <article key={payment.id} style={styles.row}>
                 <div>
                   <strong>{payment.title}</strong>
-                  <p style={styles.listMeta}>
-                    {formatPaymentDate(payment.paymentDate)} / {labelStatus(payment.status)}
+                  <p style={styles.meta}>
+                    {formatPaymentDate(payment.paymentDate)} / {formatPaymentStatus(payment.status)}
                   </p>
-                  <p style={styles.secondaryMeta}>
-                    {payment.flowType} / {payment.category}
+                  <p style={styles.submeta}>
+                    {formatFlowType(payment.flowType)} / {payment.category}
                   </p>
                 </div>
                 <strong>{money.format(payment.amount)}</strong>
@@ -94,48 +53,25 @@ export function DashboardScreen(props: {
   );
 }
 
-function labelStatus(status: OwnerDashboardOverview["upcoming"][number]["status"]) {
-  if (status === "overdue") return "Overdue";
-  if (status === "paid") return "Paid";
-  if (status === "needs_review") return "Needs review";
-  if (status === "cancelled") return "Cancelled";
-  return "Planned";
-}
-
-function formatBalanceAt(value: string) {
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(value));
-}
-
 const styles: Record<string, CSSProperties> = {
   grid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+    gridTemplateColumns: "repeat(1, minmax(0, 1fr))",
     gap: 12,
-    marginTop: 16
+    marginTop: 12
   },
   card: {
-    marginTop: 16,
-    padding: 18,
-    borderRadius: 24,
+    marginTop: 12,
+    padding: 16,
+    borderRadius: 20,
     background: "#ffffff",
     border: "1px solid #ece4d5"
   },
-  sectionHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 12
-  },
-  sectionTitle: {
+  title: {
     margin: 0,
     fontSize: 18
   },
-  sectionHint: {
+  hint: {
     margin: "6px 0 0",
     color: "#6f6658",
     fontSize: 13
@@ -143,22 +79,22 @@ const styles: Record<string, CSSProperties> = {
   list: {
     display: "grid",
     gap: 12,
-    marginTop: 16
+    marginTop: 12
   },
-  listItem: {
+  row: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: 16,
+    gap: 12,
     paddingBottom: 12,
     borderBottom: "1px solid #f0eadf"
   },
-  listMeta: {
+  meta: {
     margin: "6px 0 0",
     color: "#6f6658",
     fontSize: 13
   },
-  secondaryMeta: {
+  submeta: {
     margin: "4px 0 0",
     color: "#8b816f",
     fontSize: 12
